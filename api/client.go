@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -82,46 +82,43 @@ type SettingsResponse struct {
 }
 
 var baseUrl string = "https://internals." + os.Getenv("DEPLOYMENT_DOMAIN")
+var customHeader string = "myvalue"
+var contentType string = "application/json"
 
 func SendHttpRequest(path string, payload []byte) (*APIResponse, error) {
 	url := baseUrl + path
-	fmt.Println("URL:>", url)
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payload))
-	req.Header.Set("X-Custom-Header", "myvalue")
-	req.Header.Set("Content-Type", "application/json")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create HTTP request: %v", err)
+	}
+
+	req.Header.Set("X-Custom-Header", customHeader)
+	req.Header.Set("Content-Type", contentType)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to make HTTP request: %v", err)
 	}
 	defer resp.Body.Close()
 
-	var headers http.Header
-
-	fmt.Println("response Status:", resp.Status)
-	fmt.Println("response Headers:", resp.Header)
-
-	headers = resp.Header
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
+	status := resp.StatusCode
+	if status < http.StatusOK || status > http.StatusPartialContent {
+		body, _ := io.ReadAll(resp.Body) // Ignore error here
+		return nil, fmt.Errorf("HTTP request failed with status %s: %s", resp.Status, body)
 	}
 
-	bodyAsString := string(body)
-	fmt.Println("response Body:", bodyAsString)
-	fmt.Println("response Status:", resp.Status)
-
-	status := resp.StatusCode
-	if !(status >= 200 && status <= 299) {
-		return nil, errors.New("Status: " + resp.Status + " result: " + bodyAsString)
+	headers := resp.Header
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %v", err)
 	}
 
 	return &APIResponse{
 		Headers: headers,
-		Body:    body}, nil
-
+		Body:    body,
+	}, nil
 }
 
 func SendPutRequest(path string, payload []byte) (string, error) {
@@ -137,7 +134,7 @@ func SendPutRequest(path string, payload []byte) (string, error) {
 		return "", err
 	}
 	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}
@@ -161,6 +158,9 @@ func SendGetRequest(path string, vals map[string]string) (string, error) {
 	fmt.Println("URL:>", fullUrl)
 
 	req, err := http.NewRequest("GET", fullUrl, bytes.NewBuffer([]byte("")))
+	if err != nil {
+		return "", fmt.Errorf("failed to create HTTP request: %v", err)
+	}
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{}
@@ -169,7 +169,7 @@ func SendGetRequest(path string, vals map[string]string) (string, error) {
 		return "", err
 	}
 	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", err
 	}
@@ -351,6 +351,7 @@ func GetFlowInfo(workspace string, flowId string) (*SubFlow, error) {
 
 	return &subFlow, nil
 }
+
 func FetchCall(callId string) (*CallResponse, error) {
 	params := make(map[string]string)
 	fmt.Println("looking up call id: " + callId)
@@ -369,6 +370,7 @@ func FetchCall(callId string) (*CallResponse, error) {
 
 	return &data, nil
 }
+
 func CreateConference(workspaceId int, name string) (*ConferenceResponse, error) {
 	fmt.Println("creating conference...")
 	params := ConfParams{
