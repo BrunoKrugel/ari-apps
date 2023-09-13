@@ -344,13 +344,13 @@ func (s *Server) CreateCall(ctx context.Context, req *CallRequest) (*CallReply, 
 	}
 	user, err := strconv.Atoi(userId)
 	if err != nil {
-		fmt.Println("error occured: " + err.Error())
+		fmt.Println("error occurred: " + err.Error())
 		return nil, err
 	}
 
 	workspace, err := strconv.Atoi(workspaceId)
 	if err != nil {
-		fmt.Println("error occured: " + err.Error())
+		fmt.Println("error occurred: " + err.Error())
 		return nil, err
 	}
 	params := types.CallParams{
@@ -363,7 +363,7 @@ func (s *Server) CreateCall(ctx context.Context, req *CallRequest) (*CallReply, 
 		ChannelId:   outboundChannel.ID()}
 	body, err := json.Marshal(params)
 	if err != nil {
-		fmt.Println("error occured: " + err.Error())
+		fmt.Println("error occurred: " + err.Error())
 		return nil, err
 	}
 
@@ -372,7 +372,7 @@ func (s *Server) CreateCall(ctx context.Context, req *CallRequest) (*CallReply, 
 	call, err := outChannel.CreateCall(resp.Headers.Get("x-call-id"), &params)
 
 	if err != nil {
-		fmt.Println("error occured: " + err.Error())
+		fmt.Println("error occurred: " + err.Error())
 		return nil, err
 	}
 	callType := req.CallType
@@ -381,7 +381,7 @@ func (s *Server) CreateCall(ctx context.Context, req *CallRequest) (*CallReply, 
 	outboundChannel, err = outboundChannel.Originate(utils.CreateOriginateRequest(callerId, numberToCall, sipHeaders))
 
 	if err != nil {
-		fmt.Println("error occured: " + err.Error())
+		fmt.Println("error occurred: " + err.Error())
 		return nil, err
 	}
 	outChannel.Channel = outboundChannel
@@ -698,7 +698,7 @@ func (s *Server) ChannelRecord(ctx context.Context, req *GenericChannelReq) (*Ge
 		return nil, eris.Wrap(err, "failed to add channel to bridge")
 	}
 	user := types.NewUser(userIdInt, workspace, workspaceName)
-	recording := helpers.NewRecording(user, nil, false)
+	recording := helpers.NewRecording(ctx, user, nil, false)
 	id, err := recording.InitiateRecordingForChannel(channel)
 	if err != nil {
 		fmt.Println("startExecution err " + err.Error())
@@ -826,7 +826,7 @@ func (s *Server) BridgeRecord(ctx context.Context, req *GenericBridgeReq) (*Gene
 	}
 
 	user := types.NewUser(userIdInt, workspace, workspaceName)
-	recording := helpers.NewRecording(user, nil, false)
+	recording := helpers.NewRecording(ctx, user, nil, false)
 	id, err := recording.InitiateRecordingForBridge(bridge)
 	if err != nil {
 		fmt.Println("startExecution err " + err.Error())
@@ -975,7 +975,7 @@ func (s *Server) RecordingStop(ctx context.Context, req *RecordingRequest) (*Rec
 	}
 
 	user := types.NewUser(userIdInt, workspace, workspaceName)
-	recording := helpers.NewRecording(user, nil, false)
+	recording := helpers.NewRecording(ctx, user, nil, false)
 	go recording.Stop()
 	s.dispatchEvent(func() {
 		// send to channel

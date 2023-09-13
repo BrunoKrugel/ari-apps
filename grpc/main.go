@@ -3,6 +3,7 @@ package grpc
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 
@@ -25,35 +26,39 @@ var upgrader = websocket.Upgrader{
 } // use default options
 
 func processEvents(c *websocket.Conn, clientId string, wsChan <-chan *ClientEvent, stopChan <-chan bool) {
+	defer func() {
+		helpers.Log(logrus.InfoLevel, "Closing event processor...")
+		c.Close()
+	}()
 
 	for {
 		select {
 		case evt := <-wsChan:
-			fmt.Println(evt.ClientId)
+			log.Println("Received client event...")
 			if clientId != evt.ClientId {
 				continue
 			}
-			fmt.Println("received client event...")
+
 			mt := websocket.TextMessage
 			b, err := json.MarshalIndent(&evt, "", "\t")
 			if err != nil {
-				fmt.Println("error:", err)
+				helpers.Log(logrus.ErrorLevel, "Error marshaling JSON:"+err.Error())
+				continue // Skip sending this event on error
 			}
-			//message := "hello"
+
 			err = c.WriteMessage(mt, b)
 			if err != nil {
-				fmt.Println("error: " + err.Error())
+				helpers.Log(logrus.ErrorLevel, "Error writing message:"+err.Error())
+				return // Terminate the goroutine on error
 			}
-		case _ = <-stopChan:
-			fmt.Println("closing event processor..")
-			return
-			break
-		default:
 
-			break
+		case <-stopChan:
+			helpers.Log(logrus.InfoLevel, "Closing event processor...")
+			return
 		}
 	}
 }
+
 func ws(w http.ResponseWriter, r *http.Request) {
 	v := r.URL.Query()
 	stopChan := make(chan bool)
@@ -90,6 +95,7 @@ func startWebsocketServer() {
 	http.HandleFunc("/healthz", healthz)
 	helpers.Log(logrus.FatalLevel, http.ListenAndServe(addr, nil).Error())
 }
+
 func StartListener(cl ari.Client) {
 	return
 	wsChan := make(chan *ClientEvent)
