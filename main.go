@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"os"
 	"strconv"
 	"time"
@@ -12,98 +11,66 @@ import (
 	helpers "github.com/Lineblocs/go-helpers"
 	_ "github.com/joho/godotenv"
 	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
 
 	"github.com/CyCoreSystems/ari-proxy/v5/client"
 	"github.com/CyCoreSystems/ari/v5"
 	"github.com/CyCoreSystems/ari/v5/client/native"
 	"lineblocs.com/processor/api"
 	"lineblocs.com/processor/grpc"
-	"lineblocs.com/processor/logger"
+	"lineblocs.com/processor/internal/config"
+	errors "lineblocs.com/processor/internal/error"
 	"lineblocs.com/processor/mngrs"
 	"lineblocs.com/processor/types"
 	"lineblocs.com/processor/utils"
+	zaplog "lineblocs.com/processor/utils/log"
 )
-
-var ariApp = "lineblocs"
 
 var bridge *ari.BridgeHandle
 
-type APIResponse struct {
-	Headers http.Header
-	Body    []byte
-}
-
-func createARIConnection(connectCtx context.Context) (ari.Client, error) {
-	var err error
-	var cl ari.Client
-	var useProxy bool
-	host := os.Getenv("ARI_HOST")
-	ariUrl := fmt.Sprintf("http://%s:8088/ari", host)
-	wsUrl := fmt.Sprintf("ws://%s:8088/ari/events", host)
-	helpers.Log(logrus.InfoLevel, "Connecting to: "+ariUrl)
-	proxy := os.Getenv("ARI_USE_PROXY")
-	if proxy != "" {
-		useProxy, err = strconv.ParseBool(proxy)
-		if err != nil {
-			return nil, err
-		}
-	}
-	ctx := context.Background()
-	if useProxy {
-		helpers.Log(logrus.DebugLevel, "Using ARI proxy!!!")
-		natsgw := os.Getenv("NATSGW_URL")
-		cl, err := client.New(ctx,
-			client.WithApplication(ariApp),
-			client.WithURI(natsgw))
-		return cl, err
-	}
-	helpers.Log(logrus.InfoLevel, "Directly connecting to ARI server\r\n")
-	cl, err = native.Connect(&native.Options{
-		Application:  ariApp,
-		Username:     os.Getenv("ARI_USERNAME"),
-		Password:     os.Getenv("ARI_PASSWORD"),
-		URL:          ariUrl,
-		WebsocketURL: wsUrl})
-	return cl, err
+type bridgeManager struct {
+	h *ari.BridgeHandle
 }
 
 func main() {
-	// OPTIONAL: setup logging
-	//native.Logger = log
-	// Init Logrus and configure channels
-	logDestination := utils.Config("LOG_DESTINATIONS")
-	helpers.InitLogrus(logDestination)
 
-	helpers.Log(logrus.InfoLevel, "Connecting")
-	ctx, cancel := context.WithCancel(context.Background())
-	connectCtx, cancel2 := context.WithCancel(context.Background())
-	defer cancel()
-	defer cancel2()
-	cl, err := createARIConnection(connectCtx)
-	helpers.Log(logrus.InfoLevel, "Connected to ARI")
-
-	if err != nil {
+	if err := zaplog.InitGlobalLogger(zap.NewProductionConfig()); err != nil {
 		panic(err.Error())
-		return
 	}
 
+	cfg := config.NewConfig()
+
+	ctx, cancelCtx := context.WithCancel(context.Background())
+	defer cancelCtx()
+
+	connectCtx, cancelConnect := context.WithCancel(context.Background())
+	defer cancelConnect()
+
+	// Create the ARI connection
+	cl, err := createARIConnection(connectCtx, cfg)
+	if err != nil {
+		panic(err.Error())
+	}
 	defer cl.Close()
 
-	helpers.Log(logrus.InfoLevel, "starting GRPC listener...")
+	// Start the GRPC listener in a goroutine
 	go grpc.StartListener(cl)
-	// setup app
 
-	helpers.Log(logrus.InfoLevel, "Starting listener app")
+	// Log the startup messages
+	zaplog.InfoWithContext(context.Background(), "Connected to ARI")
+	zaplog.InfoWithContext(context.Background(), "Starting listener app")
+	zaplog.InfoWithContext(context.Background(), "Listening for new calls")
 
-	helpers.Log(logrus.InfoLevel, "Listening for new calls")
+	// Subscribe to StasisStart events
 	sub := cl.Bus().Subscribe(nil, "StasisStart")
 
 	for {
 		select {
 		case e := <-sub.Events():
-			v := e.(*ari.StasisStart)
-			helpers.Log(logrus.InfoLevel, "Got stasis start"+" channel "+v.Channel.ID)
-			go startExecution(cl, v, ctx, cl.Channel().Get(v.Key(ari.ChannelKey, v.Channel.ID)))
+			if v, ok := e.(*ari.StasisStart); ok {
+				zaplog.InfoWithContext(ctx, "Got stasis start channel "+v.Channel.ID)
+				go startExecution(ctx, cl, v, cl.Channel().Get(v.Key(ari.ChannelKey, v.Channel.ID)))
+			}
 		case <-ctx.Done():
 			return
 		case <-connectCtx.Done():
@@ -113,8 +80,27 @@ func main() {
 	}
 }
 
-type bridgeManager struct {
-	h *ari.BridgeHandle
+func createARIConnection(ctx context.Context, cfg *config.Config) (ari.Client, error) {
+
+	ariURL := cfg.ARIURL
+	wsURL := cfg.WSURL
+
+	zaplog.InfoWithContext(ctx, "Connecting to:"+ariURL)
+
+	if cfg.UseProxy {
+		zaplog.DebugWithContext(ctx, "Using ARI proxy")
+		return client.New(ctx, client.WithApplication(cfg.Application), client.WithURI(os.Getenv("NATSGW_URL")))
+	}
+
+	zaplog.InfoWithContext(ctx, "Connecting to ARI server")
+
+	return native.Connect(&native.Options{
+		Application:  cfg.Application,
+		Username:     cfg.Username,
+		Password:     cfg.Password,
+		URL:          ariURL,
+		WebsocketURL: wsURL,
+	})
 }
 
 func createCall() (types.Call, error) {
@@ -124,11 +110,11 @@ func createCallDebit(user *types.User, call *types.Call, direction string) error
 	return nil
 }
 func attachChannelLifeCycleListeners(flow *types.Flow, channel *types.LineChannel, ctx context.Context, callChannel chan *types.Call) {
-	var call *types.Call
+
 	endSub := channel.Channel.Subscribe(ari.Events.StasisEnd)
 	defer endSub.Cancel()
 
-	call = nil
+	call := &types.Call{}
 
 	for {
 
@@ -136,47 +122,45 @@ func attachChannelLifeCycleListeners(flow *types.Flow, channel *types.LineChanne
 		case <-ctx.Done():
 			return
 		case <-endSub.Events():
-			helpers.Log(logrus.DebugLevel, "stasis end called..")
+			zaplog.DebugWithContext(ctx, "received stasis end event")
 			call.Ended = time.Now()
-			params := types.StatusParams{
+			body, err := json.Marshal(types.StatusParams{
 				CallId: call.CallId,
 				Ip:     utils.GetPublicIp(),
-				Status: "ended"}
-			body, err := json.Marshal(params)
+				Status: "ended",
+			})
 			if err != nil {
-				helpers.Log(logrus.DebugLevel, "JSON error: "+err.Error())
+				zaplog.DebugWithContext(ctx, err.Error())
 				continue
 			}
 
 			_, err = api.SendHttpRequest("/call/updateCall", body)
 			if err != nil {
-				helpers.Log(logrus.DebugLevel, "HTTP error: "+err.Error())
+				zaplog.DebugWithContext(ctx, err.Error())
 				continue
 			}
 			err = createCallDebit(flow.User, call, "incoming")
 			if err != nil {
-				helpers.Log(logrus.DebugLevel, "HTTP error: "+err.Error())
+				zaplog.DebugWithContext(ctx, "HTTP error: "+err.Error())
 				continue
 			}
 
 		case call = <-callChannel:
-			helpers.Log(logrus.DebugLevel, "call is setup")
-			helpers.Log(logrus.DebugLevel, "id is "+strconv.Itoa(call.CallId))
+			zaplog.DebugWithContext(ctx, "received setup call")
+			zaplog.DebugWithContext(ctx, "id is "+strconv.Itoa(call.CallId))
 		}
 	}
 }
+
 func attachDTMFListeners(channel *types.LineChannel, ctx context.Context) {
 	dtmfSub := channel.Channel.Subscribe(ari.Events.ChannelDtmfReceived)
 	defer dtmfSub.Cancel()
 
-	for {
-
-		select {
-		case <-ctx.Done():
-			return
-		case <-dtmfSub.Events():
-			helpers.Log(logrus.DebugLevel, "received DTMF!")
-		}
+	select {
+	case <-ctx.Done():
+		return
+	case <-dtmfSub.Events():
+		zaplog.DebugWithContext(ctx, "received DTMF event")
 	}
 }
 
@@ -185,55 +169,64 @@ func processIncomingCall(cl ari.Client, ctx context.Context, flow *types.Flow, l
 	callChannel := make(chan *types.Call)
 	go attachChannelLifeCycleListeners(flow, lineChannel, ctx, callChannel)
 
-	helpers.Log(logrus.DebugLevel, "calling API to create call...")
-	helpers.Log(logrus.DebugLevel, "exten is: "+exten)
-	helpers.Log(logrus.DebugLevel, "caller ID is: "+callerId)
-	params := types.CallParams{
+	zaplog.DebugWithContext(ctx, "Processing incoming call")
+	zaplog.DebugWithContext(ctx, "Exten is:"+exten)
+	zaplog.DebugWithContext(ctx, "Caller ID is:"+callerId)
+
+	callParams := types.CallParams{
 		From:        callerId,
 		To:          exten,
 		Status:      "start",
 		Direction:   "inbound",
 		UserId:      flow.User.Id,
 		WorkspaceId: flow.User.Workspace.Id,
-		ChannelId:   lineChannel.Channel.ID()}
-	body, err := json.Marshal(params)
+		ChannelId:   lineChannel.Channel.ID(),
+	}
+
+	body, err := json.Marshal(callParams)
 	if err != nil {
-		helpers.Log(logrus.ErrorLevel, "error occured: "+err.Error())
+		zaplog.ErrorWithContext(ctx, "JSON error: "+err.Error())
 		return
 	}
 
-	helpers.Log(logrus.InfoLevel, "creating call...")
+	zaplog.DebugWithContext(ctx, "Creating call...")
 	resp, err := api.SendHttpRequest("/call/createCall", body)
 	if err != nil {
-		helpers.Log(logrus.ErrorLevel, "error occured: "+err.Error())
+		zaplog.ErrorWithContext(ctx, "HTTP error: "+err.Error())
 		return
 	}
 
 	id := resp.Headers.Get("x-call-id")
-	helpers.Log(logrus.DebugLevel, "Call ID is: "+id)
+	zaplog.DebugWithContext(ctx, "Call ID is:"+id)
 	idAsInt, err := strconv.Atoi(id)
+	if err != nil {
+		zaplog.ErrorWithContext(ctx, err.Error())
+		return
+	}
 
 	call := types.Call{
 		CallId:  idAsInt,
 		Channel: lineChannel,
 		Started: time.Now(),
-		Params:  &params}
+		Params:  &callParams,
+	}
 
 	flow.RootCall = &call
-	helpers.Log(logrus.DebugLevel, "answering call..")
+	zaplog.InfoWithContext(ctx, "Answering call")
 	lineChannel.Answer()
+
 	vars := make(map[string]string)
 	go mngrs.ProcessFlow(cl, ctx, flow, lineChannel, vars, flow.Cells[0])
+
 	callChannel <- &call
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		}
+
+	select {
+	case <-ctx.Done():
+		return
 	}
 }
 
-func startExecution(cl ari.Client, event *ari.StasisStart, ctx context.Context, h *ari.ChannelHandle) {
+func startExecution(ctx context.Context, cl ari.Client, event *ari.StasisStart, h *ari.ChannelHandle) {
 	helpers.Log(logrus.InfoLevel, "running app"+" channel "+h.Key().ID)
 
 	action := event.Args[0]
@@ -298,7 +291,7 @@ func startExecution(cl ari.Client, event *ari.StasisStart, ctx context.Context, 
 		if utils.CheckFreeTrial(data.Plan) {
 			helpers.Log(logrus.ErrorLevel, "Ending call due to free trial")
 			h.Hangup()
-			helpers.Log(logrus.DebugLevel, fmt.Sprintf("msg = %s", logger.FREE_TRIAL_ENDED))
+			helpers.Log(logrus.DebugLevel, fmt.Sprintf("msg = %s", errors.FREE_TRIAL_ENDED))
 			return
 		}
 		err = json.Unmarshal([]byte(data.FlowJson), &flowJson)
