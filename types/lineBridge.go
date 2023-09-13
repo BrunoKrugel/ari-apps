@@ -12,10 +12,10 @@ import (
 
 type LineBridge struct {
 	Bridge             *ari.BridgeHandle
-	AutomateLegAHangup bool
-	AutomateLegBHangup bool
 	Channels           []*LineChannel
 	ChannelsToAdd      []*LineChannel
+	AutomateLegAHangup bool
+	AutomateLegBHangup bool
 }
 
 func NewBridge(bridge *ari.BridgeHandle) *LineBridge {

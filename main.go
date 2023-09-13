@@ -294,7 +294,7 @@ func startExecution(ctx context.Context, cl ari.Client, event *ari.StasisStart, 
 			helpers.Log(logrus.DebugLevel, fmt.Sprintf("msg = %s", errors.FREE_TRIAL_ENDED))
 			return
 		}
-		err = json.Unmarshal([]byte(data.FlowJson), &flowJson)
+		err = json.Unmarshal([]byte(data.FlowJSON), &flowJson)
 		if err != nil {
 			helpers.Log(logrus.ErrorLevel, "startExecution err "+err.Error())
 			return

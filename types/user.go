@@ -4,13 +4,13 @@ type UserInfo struct {
 }
 type User struct {
 	Id            int
-	Info          UserInfo
-	Workspace     Workspace
-	WorkspaceName string
 	Token         string
 	Secret        string
 	Domain        string
 	Plan          string
+	Info          UserInfo
+	Workspace     Workspace
+	WorkspaceName string
 }
 
 func NewUser(userId int, workspaceId int, workspaceName string) *User {

@@ -12,8 +12,8 @@ import (
 )
 
 type LineChannel struct {
-	Channel          *ari.ChannelHandle
 	LineBridge       *LineBridge
+	Channel          *ari.ChannelHandle
 	currentCellIndex int
 	dtmfPressed      string
 }

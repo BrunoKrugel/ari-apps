@@ -2,7 +2,6 @@ package types
 
 import (
 	"fmt"
-	//"encoding/json"
 	"reflect"
 
 	"github.com/CyCoreSystems/ari/v5"
@@ -84,16 +83,14 @@ type FlowVars struct {
 }
 
 type FlowDIDData struct {
-	//FlowJson FlowVars `json:"flow_json"`
 	FlowId        int    `json:"flow_id"`
 	WorkspaceId   int    `json:"workspace_id"`
 	WorkspaceName string `json:"workspace_name"`
 	CreatorId     int    `json:"creator_id"`
-	FlowJson      string `json:"flow_json"`
+	FlowJSON      string `json:"flow_json"`
 	Plan          string `json:"plan"`
 }
 type SIPTrunkData struct {
-	//FlowJson FlowVars `json:"flow_json"`
 	Domain        string `json:"domain"`
 	WorkspaceId   int    `json:"workspace_id"`
 	WorkspaceName string `json:"workspace_name"`

@@ -30,9 +30,10 @@ type DomainResponse struct {
 	WorkspaceId   int    `json:"workspace_id"`
 	WorkspaceName string `json:"workspace_name"`
 }
+
 type FlowResponse struct {
+	FlowJSON string `json:"flow_json"`
 	FlowId   int    `json:"flow_id"`
-	FlowJson string `json:"flow_json"`
 }
 
 type SubFlow struct {
@@ -309,7 +310,7 @@ func GetExtensionFlowInfo(workspace string, extension string) (*SubFlow, error) 
 
 	subFlow = SubFlow{FlowId: data.FlowId}
 
-	err = json.Unmarshal([]byte(data.FlowJson), &flowJson)
+	err = json.Unmarshal([]byte(data.FlowJSON), &flowJson)
 	if err != nil {
 		fmt.Println("startExecution err " + err.Error())
 		return nil, err
@@ -341,7 +342,7 @@ func GetFlowInfo(workspace string, flowId string) (*SubFlow, error) {
 
 	subFlow = SubFlow{FlowId: data.FlowId}
 
-	err = json.Unmarshal([]byte(data.FlowJson), &flowJson)
+	err = json.Unmarshal([]byte(data.FlowJSON), &flowJson)
 	if err != nil {
 		fmt.Println("startExecution err " + err.Error())
 		return nil, err
