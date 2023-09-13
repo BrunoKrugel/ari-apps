@@ -1,0 +1,27 @@
+package errors
+
+const (
+	RECORDING_STOP_ERR    = "Recording failed to stop"
+	RECORDING_START_ERR   = "Recording failed to start"
+	RECORDING_PROCESS_ERR = "Recording failed to process"
+	RECORDING_UPDATE_ERR  = "failed to update Recording"
+	RECORDING_CREATE_ERR  = "failed to create Recording"
+	CALL_UPDATE_ERR       = "Failed to update call record"
+	CALL_CREATE_ERR       = "Failed to create call record"
+	STT_ERR               = "Failed to stop text to speech"
+	MEDIA_PLAYBACK_ERR    = "Failed to playback media"
+	MACRO_RUNTIME_ERR     = "Failed to process macro"
+	SEND_DIGITS_ERR       = "Failed to process send digits"
+	WAIT_ERR              = "Failed to process wait"
+	SET_VARIABLES_ERR     = "Failed to process macro"
+	SWITCH_ERR            = "Failed to process switch node"
+	PLAYBACK_DOWNLOAD_ERR = "Failed to download playback file"
+	FLOW_RUNTIME_ERR      = "Failed to process flow"
+	BRIDGE_CHANNEL_ERR    = "Failed to add channel to bridge"
+	BRIDGE_ERR            = "Bridge error occurred"
+	CHANNEL_ERR           = "Channel error occurred"
+	DOMAIN_LOOKUP_ERR     = "Channel error occurred"
+	FREE_TRIAL_ENDED      = "free trial expired cannot complete call."
+	FAX_RECEIVE_ERR       = "could not receive fax.."
+	OUTBOUND_CALL_MACRO   = "could not call due to outbound call macro"
+)
