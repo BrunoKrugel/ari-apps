@@ -1,22 +1,24 @@
 package mngrs
+
 import (
 	//"context"
 	//"github.com/CyCoreSystems/ari/v5"
-	"github.com/sirupsen/logrus"
-	"lineblocs.com/processor/utils"
-	"lineblocs.com/processor/types"
 	helpers "github.com/Lineblocs/go-helpers"
+	"github.com/sirupsen/logrus"
+	"lineblocs.com/processor/types"
+	"lineblocs.com/processor/utils"
 )
+
 type SendDigitsManager struct {
 	ManagerContext *types.Context
-	Flow *types.Flow
+	Flow           *types.Flow
 }
 
-func NewSendDigitsManager(mngrCtx *types.Context, flow *types.Flow) (*SendDigitsManager) {
+func NewSendDigitsManager(mngrCtx *types.Context, flow *types.Flow) *SendDigitsManager {
 	//rootCtx, _ := context.WithCancel(context.Background())
 	item := SendDigitsManager{
-		ManagerContext:mngrCtx,
-		Flow: flow}
+		ManagerContext: mngrCtx,
+		Flow:           flow}
 	return &item
 }
 func (man *SendDigitsManager) StartProcessing() {
@@ -31,11 +33,11 @@ func (man *SendDigitsManager) StartProcessing() {
 	//dtmfOpts := &ari.DTMFOptions{}
 
 	for i := 0; i < len(keys); i++ {
-    	key:= string( keys[i] )
-		helpers.Log(logrus.DebugLevel, "sending DTMF " + key)
+		key := string(keys[i])
+		helpers.Log(logrus.DebugLevel, "sending DTMF "+key)
 		//lineChannel.Channel.SendDTMF(key, dtmfOpts)
 		lineChannel.Channel.SendDTMF(key, nil)
- 	}
+	}
 	resp := types.ManagerResponse{
 		Channel: lineChannel,
 		Link:    next}

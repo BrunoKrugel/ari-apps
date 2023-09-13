@@ -165,7 +165,7 @@ func (man *InputManager) beginPrompt(prompt string, stopChannel <-chan bool) {
 			helpers.Log(logrus.DebugLevel, "requested playback stop..")
 			err := playback.Stop()
 			if err != nil {
-				helpers.Log(logrus.DebugLevel, "error occured: "+err.Error())
+				helpers.Log(logrus.DebugLevel, "error occurred: "+err.Error())
 			}
 			return
 		}

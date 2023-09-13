@@ -46,7 +46,7 @@ func (man *SwitchManager) startTestForCondition() {
 		splitted := strings.Split(test, ".")
 		if len(splitted) > 1 {
 			name := splitted[0]
-			variable := strings.Join(splitted[1:len(splitted)], ".")
+			variable := strings.Join(splitted[1:], ".")
 			helpers.Log(logrus.DebugLevel, "looking UP: "+variable)
 			value, err := utils.LookupCellVariable(flow, name, variable)
 			if err != nil {

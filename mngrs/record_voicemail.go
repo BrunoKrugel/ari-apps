@@ -1,9 +1,6 @@
 package mngrs
 
 import (
-	//"context"
-	//"github.com/CyCoreSystems/ari/v5"
-
 	"fmt"
 
 	helpers "github.com/Lineblocs/go-helpers"
@@ -37,7 +34,7 @@ func (man *RecordVoicemailManager) StartProcessing() {
 	if ok {
 		trim = trimData.Value
 	}
-	recording := processor_helpers.NewRecording(user, nil, trim)
+	recording := processor_helpers.NewRecording(man.ManagerContext.Context, user, nil, trim)
 	_, err := recording.InitiateRecordingForChannel(channel)
 	if err != nil {
 		fmt.Println("recording err " + err.Error())

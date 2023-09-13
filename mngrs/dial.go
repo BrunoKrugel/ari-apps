@@ -26,7 +26,7 @@ func (man *DialManager) manageOutboundCallLeg(outboundChannel *types.LineChannel
 	lineChannel := ctx.Channel
 	cell := ctx.Cell
 	flow := ctx.Flow
-	record := processor_helpers.NewRecording(flow.User, &outCall.CallId, false)
+	record := processor_helpers.NewRecording(ctx.Context, flow.User, &outCall.CallId, false)
 	_, recordErr := record.InitiateRecordingForChannel(outboundChannel)
 
 	if recordErr != nil {
@@ -137,7 +137,7 @@ func (man *DialManager) startOutboundCall(callType string) {
 		ChannelId:   outboundChannel.ID()}
 	body, err := json.Marshal(params)
 	if err != nil {
-		helpers.Log(logrus.ErrorLevel, "error occured: "+err.Error())
+		helpers.Log(logrus.ErrorLevel, "error occurred: "+err.Error())
 		return
 	}
 
@@ -146,7 +146,7 @@ func (man *DialManager) startOutboundCall(callType string) {
 	outCall, err := outChannel.CreateCall(resp.Headers.Get("x-call-id"), &params)
 
 	if err != nil {
-		helpers.Log(logrus.ErrorLevel, "error occured: "+err.Error())
+		helpers.Log(logrus.ErrorLevel, "error occurred: "+err.Error())
 		return
 	}
 
@@ -155,7 +155,7 @@ func (man *DialManager) startOutboundCall(callType string) {
 	outboundChannel, err = outboundChannel.Originate(utils.CreateOriginateRequest(callerId, numberToCall, headers))
 
 	if err != nil {
-		helpers.Log(logrus.ErrorLevel, "error occured: "+err.Error())
+		helpers.Log(logrus.ErrorLevel, "error occurred: "+err.Error())
 		return
 	}
 	outChannel.Channel = outboundChannel

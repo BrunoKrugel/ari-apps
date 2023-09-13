@@ -26,7 +26,7 @@ func (channel *LineChannel) SafeHangup() error {
 	if channel.Channel != nil {
 		return channel.Channel.Hangup()
 	}
-	return errors.New("No Channel is existed.")
+	return errors.New("no Channel is existed")
 }
 
 func (channel *LineChannel) Answer() error {
@@ -34,7 +34,7 @@ func (channel *LineChannel) Answer() error {
 		channel.Channel.Answer()
 		return nil
 	}
-	return errors.New("No Channel is existed.")
+	return errors.New("no Channel is existed")
 }
 
 func (channel *LineChannel) CreateCall(id string, params *CallParams) (*Call, error) {

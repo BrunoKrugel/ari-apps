@@ -92,7 +92,7 @@ func (man *BridgeManager) manageBridge(bridge *types.LineBridge, wg *sync.WaitGr
 	flow := ctx.Flow
 	cell := ctx.Cell
 	channel := ctx.Channel
-	record := processor_helpers.NewRecording(flow.User, &flow.RootCall.CallId, false)
+	record := processor_helpers.NewRecording(ctx.Context, flow.User, &flow.RootCall.CallId, false)
 	//_,recordErr:=record.InitiateRecordingForBridge(bridge)
 	_, recordErr := record.InitiateRecordingForBridge(bridge)
 	next, _ := utils.FindLinkByName(cell.TargetLinks, "source", "Connected Call Ended")
@@ -259,7 +259,7 @@ func (man *BridgeManager) startOutboundCall(bridge *types.LineBridge, callType s
 		ChannelId:   outboundChannel.ID()}
 	body, err := json.Marshal(params)
 	if err != nil {
-		helpers.Log(logrus.ErrorLevel, "error occured: "+err.Error())
+		helpers.Log(logrus.ErrorLevel, "error occurred: "+err.Error())
 		return
 	}
 
@@ -267,13 +267,13 @@ func (man *BridgeManager) startOutboundCall(bridge *types.LineBridge, callType s
 	resp, err := api.SendHttpRequest("/call/createCall", body)
 
 	if err != nil {
-		helpers.Log(logrus.ErrorLevel, "error occured: "+err.Error())
+		helpers.Log(logrus.ErrorLevel, "error occurred: "+err.Error())
 		return
 	}
 	outCall, err := outChannel.CreateCall(resp.Headers.Get("x-call-id"), &params)
 
 	if err != nil {
-		helpers.Log(logrus.ErrorLevel, "error occured: "+err.Error())
+		helpers.Log(logrus.ErrorLevel, "error occurred: "+err.Error())
 		return
 	}
 
@@ -282,7 +282,7 @@ func (man *BridgeManager) startOutboundCall(bridge *types.LineBridge, callType s
 	outboundChannel, err = outboundChannel.Originate(utils.CreateOriginateRequest(callerId, numberToCall, headers))
 
 	if err != nil {
-		helpers.Log(logrus.ErrorLevel, "error occured: "+err.Error())
+		helpers.Log(logrus.ErrorLevel, "error occurred: "+err.Error())
 		return
 	}
 	outChannel.Channel = outboundChannel

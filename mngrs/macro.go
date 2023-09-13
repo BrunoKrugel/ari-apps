@@ -108,7 +108,7 @@ func (man *MacroManager) executeMacro() {
 	//err := man.initializeK8sAndExecute(sEnc)
 
 	if err != nil {
-		helpers.Log(logrus.ErrorLevel, "error occured: "+err.Error())
+		helpers.Log(logrus.ErrorLevel, "error occurred: "+err.Error())
 		resp := types.ManagerResponse{
 			Channel: channel,
 			Link:    errorLink}

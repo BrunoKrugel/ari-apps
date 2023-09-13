@@ -1,6 +1,6 @@
 package types
 
 type ManagerResponse struct {
-	Link *Link
+	Link    *Link
 	Channel *LineChannel
 }

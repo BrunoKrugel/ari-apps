@@ -50,7 +50,7 @@ func (man *PlaybackManager) processPlayback() {
 				data["voice"].(types.ModelDataStr).Value,
 				data["text_language"].(types.ModelDataStr).Value)
 			if err != nil {
-				helpers.Log(logrus.ErrorLevel,"error downloading: " + err.Error())
+				helpers.Log(logrus.ErrorLevel, "error downloading: "+err.Error())
 				man.errorResult()
 				return
 			}

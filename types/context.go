@@ -2,7 +2,6 @@ package types
 
 import (
 	"context"
-	"fmt"
 	"regexp"
 	"strings"
 
@@ -21,61 +20,42 @@ type Context struct {
 }
 
 func convertVariableValues(value string, lineFlow *Flow) string {
-	rex := regexp.MustCompile("\\{\\{[\\w\\d\\.]+\\}\\}")
-	out := rex.FindAllStringSubmatch(value, -1)
+	rex := regexp.MustCompile(`\{\{[\w\d\.]+\}\}`)
+	out := rex.FindAllString(value, -1)
 
-	for _, i := range out {
-		fmt.Println(i)
-		match := i[0]
-		fmt.Println(match)
-		rex1 := regexp.MustCompile("^\\{\\{|\\}\\}$")
-		updated := strings.Split(rex1.ReplaceAllString(match, ""), ".")
-		if len(updated) > 2 {
-			rex2 := regexp.MustCompile(match)
-			value = rex2.ReplaceAllString(value, "")
-		} else {
-			rex2 := regexp.MustCompile(match)
-			value = rex2.ReplaceAllString(value, "")
-		}
+	for _, match := range out {
+		value = strings.ReplaceAll(value, match, "")
 	}
 	return value
 }
+
 func processInterpolation(i ModelData, lineFlow *Flow) {
-	itemStr, ok := i.(ModelDataStr)
-	if ok {
-		itemStr.Value = convertVariableValues(itemStr.Value, lineFlow)
-		return
-	}
-	itemObj, ok := i.(ModelDataObj)
-	if ok {
-		for k, v := range itemObj.Value {
-			itemObj.Value[k] = convertVariableValues(v, lineFlow)
+	switch value := i.(type) {
+	case ModelDataStr:
+		value.Value = convertVariableValues(value.Value, lineFlow)
+	case ModelDataObj:
+		for k, v := range value.Value {
+			value.Value[k] = convertVariableValues(v, lineFlow)
 		}
-		return
-	}
-	itemArr, ok := i.(ModelDataArr)
-	if ok {
-		for k, v := range itemArr.Value {
-			itemArr.Value[k] = convertVariableValues(v, lineFlow)
+	case ModelDataArr:
+		for k, v := range value.Value {
+			value.Value[k] = convertVariableValues(v, lineFlow)
 		}
-		return
 	}
 }
+
 func processAllInterpolations(data map[string]ModelData, lineFlow *Flow) {
 	for key, val := range data {
-		interoplated := "_before_interopolations"
-		if strings.HasSuffix(key, interoplated) {
-			continue
+		if !strings.HasSuffix(key, "_before_interpolations") {
+			interpolatedKey := key + "_before_interpolations"
+			if before, ok := data[interpolatedKey]; ok {
+				processInterpolation(before, lineFlow)
+			}
+			processInterpolation(val, lineFlow)
 		}
-		interoplatedKey := key + "_before_interopolations"
-		if before, ok := data[interoplatedKey]; ok {
-			//do something here
-			processInterpolation(&before, lineFlow)
-			continue
-		}
-		processInterpolation(&val, lineFlow)
 	}
 }
+
 func NewContext(cl ari.Client, ctx context.Context, recvChannel chan<- *ManagerResponse, flow *Flow, cell *Cell, runner *Runner, channel *LineChannel) *Context {
 	processAllInterpolations(cell.Model.Data, flow)
 	return &Context{Client: cl, Context: ctx, Channel: channel, Cell: cell, Flow: flow, Runner: runner, RecvChannel: recvChannel}

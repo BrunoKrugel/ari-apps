@@ -21,7 +21,8 @@ func NewMockClient() ari.Client {
 		Username:     "ariuser",
 		Password:     "*9lwK@992I1gjK1P",
 		URL:          ariUrl,
-		WebsocketURL: wsUrl})
+		WebsocketURL: wsUrl,
+	})
 	return cl
 }
 

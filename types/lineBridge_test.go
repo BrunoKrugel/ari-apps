@@ -42,7 +42,7 @@ func TestAddChannel(t *testing.T) {
 				lineChannel: &lineChannel,
 			},
 			want: want{
-				1,
+				length: 1,
 			},
 		},
 	}
@@ -94,7 +94,7 @@ func TestRemoveChannel(t *testing.T) {
 				lineChannel: &lineChannel,
 			},
 			want: want{
-				1,
+				length: 1,
 			},
 		},
 	}
