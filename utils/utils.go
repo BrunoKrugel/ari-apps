@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path"
@@ -47,6 +46,10 @@ type ConfCache struct {
 	UserInfo *types.UserInfo `json:"userInfo"`
 }
 
+const (
+	DEFAULT_CALLER_ID = 1
+)
+
 // TODO get the ip
 func GetPublicIp() string {
 	return "0.0.0.0"
@@ -54,26 +57,28 @@ func GetPublicIp() string {
 
 func PlaybackLoops(data types.ModelData) int {
 	item, ok := data.(types.ModelDataStr)
-
 	if !ok {
-		return 1
+		return DEFAULT_CALLER_ID
 	}
+
 	if item.Value == "" {
-		// default caller id
-		return 1
+		return DEFAULT_CALLER_ID
 	}
+
 	intVar, err := strconv.Atoi(item.Value)
 	if err != nil {
-		return 1
+		return DEFAULT_CALLER_ID
 	}
+
 	return intVar
 }
+
 func DetermineCallerId(call *types.Call, data types.ModelData) string {
 	item, ok := data.(types.ModelDataStr)
-
 	if !ok {
 		return call.Params.From
 	}
+
 	if item.Value == "" {
 		// default caller id
 		return call.Params.From
@@ -82,10 +87,7 @@ func DetermineCallerId(call *types.Call, data types.ModelData) string {
 }
 
 func CheckFreeTrial(plan string) bool {
-	if plan == "expired" {
-		return true
-	}
-	return false
+	return plan == "expired"
 }
 
 func CreateRDB() *redis.Client {
@@ -98,34 +100,40 @@ func CreateRDB() *redis.Client {
 }
 
 func FindLinkByName(links []*types.Link, direction string, tag string) (*types.Link, error) {
-	fmt.Println("FindLinkByName called...")
 	for _, link := range links {
-		fmt.Println("FindLinkByName checking source port: " + link.Link.Source.Port)
-		fmt.Println("FindLinkByName checking target port: " + link.Link.Target.Port)
-		if direction == "source" {
-			fmt.Println("FindLinkByName checking link: " + link.Source.Cell.Name)
-			if link.Link.Source.Port == tag {
-				return link, nil
-			}
-		} else if direction == "target" {
+		var targetName, port string
 
-			fmt.Println("FindLinkByName checking link: " + link.Target.Cell.Name)
-			if link.Link.Target.Port == tag {
-				return link, nil
-			}
+		switch direction {
+		case "source":
+			targetName = link.Source.Cell.Name
+			port = link.Link.Source.Port
+		case "target":
+			targetName = link.Target.Cell.Name
+			port = link.Link.Target.Port
+		default:
+			return nil, fmt.Errorf("invalid direction: %s", direction)
+		}
+
+		fmt.Printf("Checking %s direction - Link: %s, Port: %s", direction, targetName, port)
+
+		if port == tag {
+			return link, nil
 		}
 	}
-	return nil, errors.New("Could not find link")
+
+	return nil, fmt.Errorf("could not find link with tag %s in %s direction", tag, direction)
 }
+
 func GetCellByName(flow *types.Flow, name string) (*types.Cell, error) {
 	for _, v := range flow.Cells {
-
 		if v.Cell.Name == name {
 			return v, nil
 		}
 	}
+
 	return nil, nil
 }
+
 func LookupCellVariable(flow *types.Flow, name string, lookup string) (string, error) {
 	var cell *types.Cell
 	cell, err := GetCellByName(flow, name)
@@ -133,9 +141,9 @@ func LookupCellVariable(flow *types.Flow, name string, lookup string) (string, e
 		return "", err
 	}
 	if cell == nil {
-		return "", errors.New("Could not find cell")
+		return "", errors.New("could not find cell")
 	}
-	fmt.Println("looking up cell variable\r\n")
+	fmt.Println("looking up cell variable\r")
 	fmt.Println(cell.Cell.Type)
 	if cell.Cell.Type == "devs.LaunchModel" {
 		if lookup == "call.from" {
@@ -172,7 +180,7 @@ func LookupCellVariable(flow *types.Flow, name string, lookup string) (string, e
 			return strconv.Itoa(call.FigureOutEndedTime()), nil
 		}
 	} else if cell.Cell.Type == "devs.ProcessInputModel" {
-		fmt.Println("getting input value..\r\n")
+		fmt.Println("getting input value..\r")
 		if lookup == "digits" {
 			fmt.Println("found:")
 			fmt.Println(cell.EventVars["digits"])
@@ -180,14 +188,6 @@ func LookupCellVariable(flow *types.Flow, name string, lookup string) (string, e
 		}
 	}
 	return "", errors.New("Could not find link")
-}
-
-// TODO call API to get proxy IPs
-func GetSIPProxy() string {
-	//return "proxy1";
-	//return "52.60.126.237"
-	//return "159.89.124.168"
-	return os.Getenv("PROXY_HOST")
 }
 
 func GetARIHost() string {
@@ -227,60 +227,24 @@ func CreateOriginateRequest2(callerId string, numberToCall string) ari.Originate
 func DetermineNumberToCall(data map[string]types.ModelData) (string, error) {
 	callType, ok := data["call_type"].(types.ModelDataStr)
 	if !ok {
-		return "", errors.New("Could not get call type")
+		return "", errors.New("could not get call type")
 	}
 
 	switch callType.Value {
 	case "Extension":
 		ext, ok := data["extension"].(types.ModelDataStr)
 		if !ok {
-			return "", errors.New("Could not get ext")
+			return "", errors.New("could not get ext")
 		}
 		return ext.Value, nil
 	case "Phone Number":
 		ext, ok := data["number_to_call"].(types.ModelDataStr)
 		if !ok {
-			return "", errors.New("Could not get number")
+			return "", errors.New("could not get number")
 		}
 		return ext.Value, nil
 	}
-	return "", errors.New("Unknown call type")
-}
-
-func GetSIPSecretKey() string {
-	//return "BrVIsXzQx9-7lvRsXMC2V57dA4UEc-G_HwnCpK-zctk"
-	//return "BrVIsXzQx9-7lvRsXMC2V57dA4UEc-G_HwnCpK-zctk"
-	key := os.Getenv("LINEBLOCS_KEY")
-	return key
-}
-
-func CreateSIPHeaders(domain, callerId, typeOfCall, apiCallId string, addedHeaders *[]string) map[string]string {
-	headers := make(map[string]string)
-	headers["SIPADDHEADER0"] = "X-LineBlocs-Key: " + GetSIPSecretKey()
-	headers["SIPADDHEADER1"] = "X-LineBlocs-Domain: " + domain
-	headers["SIPADDHEADER2"] = "X-LineBlocs-Route-Type: " + typeOfCall
-	headers["SIPADDHEADER3"] = "X-LineBlocs-Caller: " + callerId
-	headers["SIPADDHEADER4"] = "X-LineBlocs-API-CallId: " + apiCallId
-	headerCounter := 5
-	if addedHeaders != nil {
-		for _, value := range *addedHeaders {
-			headers["SIPADDHEADER"+strconv.Itoa(headerCounter)] = value
-			headerCounter = headerCounter + 1
-		}
-	}
-	return headers
-}
-
-func CreateSIPHeadersForSIPTrunkCall(domain, callerId, typeOfCall, apiCallId string, trunkAddr string) map[string]string {
-	headers := make(map[string]string)
-	headers["SIPADDHEADER0"] = "X-LineBlocs-Key: " + GetSIPSecretKey()
-	headers["SIPADDHEADER1"] = "X-LineBlocs-Domain: " + domain
-	headers["SIPADDHEADER2"] = "X-LineBlocs-Route-Type: " + typeOfCall
-	headers["SIPADDHEADER3"] = "X-LineBlocs-Caller: " + callerId
-	headers["SIPADDHEADER4"] = "X-LineBlocs-API-CallId: " + apiCallId
-	headers["SIPADDHEADER5"] = "X-Lineblocs-User-SIP-Trunk-Addr: " + trunkAddr
-	headers["SIPADDHEADER6"] = "X-Lineblocs-User-SIP-Trunk: true"
-	return headers
+	return "", errors.New("unknown call type")
 }
 
 func sendToAssetServer(path string, filename string) (string, error) {
@@ -298,7 +262,7 @@ func sendToAssetServer(path string, filename string) (string, error) {
 		Credentials: creds,
 	})
 	if err != nil {
-		return "", fmt.Errorf("error occured: %v", err)
+		return "", fmt.Errorf("error occurred: %v", err)
 	}
 
 	// Create an uploader with the session and default options
@@ -312,7 +276,7 @@ func sendToAssetServer(path string, filename string) (string, error) {
 	bucket := "lineblocs"
 	key := "media-streams/" + filename
 
-	fmt.Printf("Uploading to %s\r\n", key)
+	fmt.Printf("Uploading to %s\r", key)
 	// Upload the file to S3.
 	result, err := uploader.Upload(&s3manager.UploadInput{
 		Bucket: aws.String(bucket),
@@ -322,7 +286,7 @@ func sendToAssetServer(path string, filename string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to upload file, %v", err)
 	}
-	fmt.Printf("file uploaded to, %s\n", aws.StringValue(&result.Location))
+	fmt.Printf("file uploaded to, %s", aws.StringValue(&result.Location))
 
 	// send back link to media
 	url := "https://mediafs." + os.Getenv("DEPLOYMENT_DOMAIN") + "/" + key
@@ -446,12 +410,12 @@ func StartTTS(say string, gender string, voice string, lang string) (string, err
 	filename := (uniq.String() + ".wav")
 	fullPathToFile := folder + filename
 
-	err = ioutil.WriteFile(fullPathToFile, resp.AudioContent, 0644)
+	err = os.WriteFile(fullPathToFile, resp.AudioContent, 0644)
 	if err != nil {
 		helpers.Log(logrus.ErrorLevel, err.Error())
 		return "", err
 	}
-	fmt.Printf("Audio content written to file: %v\n", fullPathToFile)
+	fmt.Printf("Audio content written to file: %v", fullPathToFile)
 	link, err := sendToAssetServer(fullPathToFile, filename)
 	if err != nil {
 		return "", err
@@ -506,7 +470,7 @@ func StartSTT(fileURI string) (string, error) {
 	var highestConfidence float32 = 0.0
 	for _, result := range resp.Results {
 		for _, alt := range result.Alternatives {
-			fmt.Printf("\"%v\" (confidence=%3f)\n", alt.Transcript, alt.Confidence)
+			fmt.Printf("\"%v\" (confidence=%3f)", alt.Transcript, alt.Confidence)
 			if highestConfidence == 0.0 || alt.Confidence > highestConfidence {
 				text = alt.Transcript
 				highestConfidence = alt.Confidence
@@ -528,12 +492,12 @@ func SaveLiveRecording(result *record.Result) (string, error) {
 	filename := (uniq.String() + ".wav")
 	fullPathToFile := folder + filename
 
-	err = ioutil.WriteFile(fullPathToFile, data, 0644)
+	err = os.WriteFile(fullPathToFile, data, 0644)
 	if err != nil {
 		helpers.Log(logrus.ErrorLevel, err.Error())
 		return "", err
 	}
-	fmt.Printf("Audio content written to file: %v\n", fullPathToFile)
+	fmt.Printf("Audio content written to file: %v", fullPathToFile)
 	link, err := sendToAssetServer(fullPathToFile, filename)
 	if err != nil {
 		return "", err
@@ -557,19 +521,17 @@ func changeAudioEncoding(filepath string, ext string) (string, error) {
 }
 
 func ParseRingTimeout(value types.ModelData) int {
-
 	item, ok := value.(types.ModelDataStr)
 	if !ok {
 		return 30
 	}
-	result, err := strconv.Atoi(item.Value)
 
-	// use default
+	result, err := strconv.Atoi(item.Value)
 	if err != nil {
 		return 30
 	}
-	return result
 
+	return result
 }
 
 func SafeSendResonseToChannel(channel chan<- *types.ManagerResponse, resp *types.ManagerResponse) {
@@ -590,7 +552,7 @@ func AddConfBridge(client ari.Client, workspace string, confName string, conf *t
 		BridgeId: conf.Bridge.Bridge.ID()}
 	body, err := json.Marshal(params)
 	if err != nil {
-		helpers.Log(logrus.ErrorLevel, "error occured: "+err.Error())
+		helpers.Log(logrus.ErrorLevel, "error occurred: "+err.Error())
 		return nil, err
 	}
 
@@ -656,7 +618,7 @@ func EnsureBridge(cl ari.Client, src *ari.Key, user *types.User, lineChannel *ty
 		ChannelId:   outboundChannel.ID()}
 	body, err := json.Marshal(params)
 	if err != nil {
-		helpers.Log(logrus.ErrorLevel, "error occured: "+err.Error())
+		helpers.Log(logrus.ErrorLevel, "error occurred: "+err.Error())
 		return err
 	}
 
@@ -665,7 +627,7 @@ func EnsureBridge(cl ari.Client, src *ari.Key, user *types.User, lineChannel *ty
 	resp, err := api.SendHttpRequest("/call/createCall", body)
 
 	if err != nil {
-		helpers.Log(logrus.ErrorLevel, "error occured: "+err.Error())
+		helpers.Log(logrus.ErrorLevel, "error occurred: "+err.Error())
 		return err
 	}
 	id := resp.Headers.Get("x-call-id")
@@ -683,7 +645,7 @@ func EnsureBridge(cl ari.Client, src *ari.Key, user *types.User, lineChannel *ty
 	headers := CreateSIPHeaders(domain, callerId, typeOfCall, apiCallId, addedHeaders)
 	outboundChannel, err = outboundChannel.Originate(CreateOriginateRequest(callerId, numberToCall, headers))
 	if err != nil {
-		helpers.Log(logrus.ErrorLevel, "error occured: "+err.Error())
+		helpers.Log(logrus.ErrorLevel, "error occurred: "+err.Error())
 		return err
 	}
 
@@ -703,7 +665,7 @@ func EnsureBridge(cl ari.Client, src *ari.Key, user *types.User, lineChannel *ty
 	_, err = outChannel.CreateCall(resp.Headers.Get("x-call-id"), &params)
 
 	if err != nil {
-		helpers.Log(logrus.ErrorLevel, "error occured: "+err.Error())
+		helpers.Log(logrus.ErrorLevel, "error occurred: "+err.Error())
 		return err
 	}
 
@@ -859,7 +821,7 @@ func ProcessSIPTrunkCall(
 		ChannelId:   outboundChannel.ID()}
 	body, err := json.Marshal(params)
 	if err != nil {
-		helpers.Log(logrus.ErrorLevel, "error occured: "+err.Error())
+		helpers.Log(logrus.ErrorLevel, "error occurred: "+err.Error())
 		return err
 	}
 
@@ -868,7 +830,7 @@ func ProcessSIPTrunkCall(
 	resp, err := api.SendHttpRequest("/call/createCall", body)
 
 	if err != nil {
-		helpers.Log(logrus.ErrorLevel, "error occured: "+err.Error())
+		helpers.Log(logrus.ErrorLevel, "error occurred: "+err.Error())
 		return err
 	}
 	id := resp.Headers.Get("x-call-id")
@@ -886,7 +848,7 @@ func ProcessSIPTrunkCall(
 	headers := CreateSIPHeadersForSIPTrunkCall(domain, callerId, "pstn", apiCallId, trunkAddr)
 	outboundChannel, err = outboundChannel.Originate(CreateOriginateRequest(callerId, exten, headers))
 	if err != nil {
-		helpers.Log(logrus.ErrorLevel, "error occured: "+err.Error())
+		helpers.Log(logrus.ErrorLevel, "error occurred: "+err.Error())
 		return err
 	}
 
@@ -906,7 +868,7 @@ func ProcessSIPTrunkCall(
 	_, err = outChannel.CreateCall(resp.Headers.Get("x-call-id"), &params)
 
 	if err != nil {
-		helpers.Log(logrus.ErrorLevel, "error occured: "+err.Error())
+		helpers.Log(logrus.ErrorLevel, "error occurred: "+err.Error())
 		return err
 	}
 
